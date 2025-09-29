@@ -173,5 +173,25 @@ with st.sidebar:
     else:
         st.session_state.sentiment_data = None
 
+        # Main content area with tabs for chatbots
+tab1, tab2 = st.tabs(["💬 Chat with GPT-2", "🧠 Chat with Groq Llama-3.1"])
+
+with tab1:
+    st.header(f"Chat with GPT-2 ({GPT2_MODEL_NAME})")
+    for message in st.session_state.messages_gpt2:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input(f"Say something to {GPT2_MODEL_NAME}...", key="gpt2_chat_input"):
+        st.session_state.messages_gpt2.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner(f"{GPT2_MODEL_NAME} is thinking..."):
+                full_response = chat_with_gpt2(prompt)
+                st.markdown(full_response)
+        st.session_state.messages_gpt2.append({"role": "assistant", "content": full_response})
+
 
 
