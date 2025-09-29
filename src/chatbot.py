@@ -278,12 +278,48 @@ with st.sidebar:
 # Main content area with tabs for chatbots and sentiment results
 tab1, tab2 = st.tabs(["💬 Chat with GPT-2", "🧠 Chat with Groq Llama-3.1"])
 
+# --- Display Sentiment Results in Main Page if Available ---
+if st.session_state.sentiment_data is not None:
+    st.subheader("📊 Sentiment Analysis Overview")
+    st.info(f"Analysis performed on column: **`{st.session_state.sentiment_text_column}`**")
+
+    # Display aggregate sentiment counts
+    sentiment_counts = st.session_state.sentiment_data['sentiment_label'].value_counts()
+    st.write("Sentiment Distribution:")
+    st.dataframe(sentiment_counts.reset_index().rename(columns={'index': 'Sentiment', 'sentiment_label': 'Count'}))
+    st.bar_chart(sentiment_counts)
+    
+    # Optionally display a sample of the analyzed data
+    st.markdown("---")
+    st.subheader("Sample of Analyzed Reviews")
+    display_cols = [
+        st.session_state.sentiment_text_column, 
+        'sentiment_label', 
+        'review_title', 
+        'rating', 
+        'product_name', 
+        'category'
+    ]
+    # Filter for columns that actually exist in the dataframe
+    display_cols_filtered = [col for col in display_cols if col in st.session_state.sentiment_data.columns]
+    
+    if display_cols_filtered:
+        st.dataframe(st.session_state.sentiment_data[display_cols_filtered].head(10))
+    else:
+        st.info("No specific analysis columns found to display sample data.")
+    st.markdown("---")
+
+
+# --- GPT-2 Chat Tab ---
 with tab1:
     st.header(f"Chat with GPT-2 ({GPT2_MODEL_NAME})")
+    
+    # Display previous messages
     for message in st.session_state.messages_gpt2:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Chat input for GPT-2
     if prompt := st.chat_input(f"Say something to {GPT2_MODEL_NAME}...", key="gpt2_chat_input"):
         st.session_state.messages_gpt2.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
