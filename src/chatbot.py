@@ -126,5 +126,52 @@ def chat_with_llama(prompt):
     except Exception as e:
         st.error(f"Error communicating with Groq API: {e}")
         return "Sorry, I couldn't connect to the Llama model."
+    
+
+#------------------------------------------------------------------------
+# --- UI Layout ---
+#------------------------------------------------------------------------
+# Sidebar for file upload and sentiment display
+with st.sidebar:
+    st.header("Excel Sentiment Analysis")
+    uploaded_file = st.file_uploader("Upload an Excel file (.xlsx)", type=["xlsx"])
+
+    if uploaded_file is not None:
+        try:
+            df = pd.read_excel(uploaded_file)
+            st.success("Excel file uploaded successfully!")
+
+            default_text_column = next((col for col in df.columns if 'text' in col.lower() or 'comment' in col.lower()), df.columns[0])
+            text_column = st.selectbox("Select text column for sentiment analysis:", df.columns, index=df.columns.get_loc(default_text_column) if default_text_column in df.columns else 0)
+
+
+            if st.button("Analyze Sentiment"):
+                with st.spinner("Analyzing sentiment..."):
+                    if text_column in df.columns:
+                        df['sentiment_label'] = df[text_column].apply(lambda x: analyze_sentiment(x)[0])
+                        df['sentiment_scores'] = df[text_column].apply(lambda x: analyze_sentiment(x)[1])
+                        st.session_state.sentiment_data = df
+                        st.success("Sentiment analysis complete!")
+                    else:
+                        st.warning(f"Column '{text_column}' not found in the uploaded Excel file.")
+
+
+            if st.session_state.sentiment_data is not None:
+                st.subheader("Sentiment Analysis Results")
+                display_cols = [col for col in [text_column, 'sentiment_label'] if col in st.session_state.sentiment_data.columns]
+                if display_cols:
+                    st.dataframe(st.session_state.sentiment_data[display_cols])
+
+                    sentiment_counts = st.session_state.sentiment_data['sentiment_label'].value_counts()
+                    st.bar_chart(sentiment_counts)
+                else:
+                    st.info("Sentiment data available, but selected text column might have changed.")
+
+        except Exception as e:
+            st.error(f"Error processing Excel file: {e}")
+            st.session_state.sentiment_data = None
+    else:
+        st.session_state.sentiment_data = None
+
 
 
