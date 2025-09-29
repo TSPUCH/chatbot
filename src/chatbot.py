@@ -187,69 +187,95 @@ def chat_with_llama(prompt, file_context=""):
     """
     try:
         client = Groq(api_key=GROQ_API_KEY)
+        
+        messages = []
+        if file_context:
+            messages.append({
+                "role": "system",
+                "content": "You have access to information from an uploaded Excel file. "
+                           "Use the provided file context to answer questions about the data, "
+                           "sentiment analysis, product reviews, and related statistics. "
+                           "If a question requires data not in the summary, state that. "
+                           "File Context:\n" + file_context
+            })
+        
+        messages.append({
+            "role": "user",
+            "content": prompt,
+        })
+
         chat_completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model="llama-3.1-8b-instant", # Ensure this model name is correct and available on Groq
+            messages=messages,
+            model="llama-3.1-8b-instant",
             temperature=0.7,
-            max_tokens=200,
+            max_tokens=500, # Increased max tokens for analytical responses
         )
         return chat_completion.choices[0].message.content
     except Exception as e:
         st.error(f"Error communicating with Groq API: {e}")
-        return "Sorry, I couldn't connect to the Llama model."
-    
+        return "Sorry, I couldn't connect to the Llama model or process your request."
 
-#------------------------------------------------------------------------
 # --- UI Layout ---
-#------------------------------------------------------------------------
-# Sidebar for file upload and sentiment display
+# Sidebar for file upload and sentiment analysis trigger
 with st.sidebar:
-    st.header("Excel Sentiment Analysis")
+    st.header("Excel Data Uploader")
     uploaded_file = st.file_uploader("Upload an Excel file (.xlsx)", type=["xlsx"])
 
     if uploaded_file is not None:
         try:
-            df = pd.read_excel(uploaded_file)
-            st.success("Excel file uploaded successfully!")
+            # Read the Excel file into a BytesIO object first to handle it in memory
+            # This is robust if Streamlit reruns
+            file_buffer = io.BytesIO(uploaded_file.getvalue())
+            df = pd.read_excel(file_buffer)
+            st.success("Excel file uploaded successfully! Now select a column for analysis.")
 
-            default_text_column = next((col for col in df.columns if 'text' in col.lower() or 'comment' in col.lower()), df.columns[0])
-            text_column = st.selectbox("Select text column for sentiment analysis:", df.columns, index=df.columns.get_loc(default_text_column) if default_text_column in df.columns else 0)
+            # Identify potential text columns for sentiment analysis
+            potential_text_cols = [
+                col for col in df.columns if 
+                'review_content' in col.lower() or 
+                'comment' in col.lower() or 
+                'description' in col.lower() or
+                'text' in col.lower()
+            ]
+            default_text_column = potential_text_cols[0] if potential_text_cols else df.columns[0]
+            
+            # Selectbox for the user to confirm the text column
+            st.session_state.sentiment_text_column = st.selectbox(
+                "Select the primary text column for sentiment analysis:", 
+                df.columns, 
+                index=df.columns.get_loc(default_text_column) if default_text_column in df.columns else 0
+            )
 
+            if st.button("Analyze Sentiment and Prepare for Bots"):
+                with st.spinner("Analyzing sentiment and preparing file context..."):
+                    if st.session_state.sentiment_text_column in df.columns:
+                        # Perform sentiment analysis
+                        df['sentiment_label'] = df[st.session_state.sentiment_text_column].apply(lambda x: analyze_sentiment(x)[0])
+                        df['sentiment_scores'] = df[st.session_state.sentiment_text_column].apply(lambda x: analyze_sentiment(x)[1])
+                        st.session_state.sentiment_data = df.copy() # Store the analyzed DataFrame
 
-            if st.button("Analyze Sentiment"):
-                with st.spinner("Analyzing sentiment..."):
-                    if text_column in df.columns:
-                        df['sentiment_label'] = df[text_column].apply(lambda x: analyze_sentiment(x)[0])
-                        df['sentiment_scores'] = df[text_column].apply(lambda x: analyze_sentiment(x)[1])
-                        st.session_state.sentiment_data = df
-                        st.success("Sentiment analysis complete!")
+                        # Generate summary for the bots
+                        st.session_state.file_summary_for_bots = generate_file_summary_for_bots(
+                            df, st.session_state.sentiment_text_column
+                        )
+                        st.success("Sentiment analysis complete and file context prepared for chatbots!")
                     else:
-                        st.warning(f"Column '{text_column}' not found in the uploaded Excel file.")
-
-
-            if st.session_state.sentiment_data is not None:
-                st.subheader("Sentiment Analysis Results")
-                display_cols = [col for col in [text_column, 'sentiment_label'] if col in st.session_state.sentiment_data.columns]
-                if display_cols:
-                    st.dataframe(st.session_state.sentiment_data[display_cols])
-
-                    sentiment_counts = st.session_state.sentiment_data['sentiment_label'].value_counts()
-                    st.bar_chart(sentiment_counts)
-                else:
-                    st.info("Sentiment data available, but selected text column might have changed.")
+                        st.warning(f"Column '{st.session_state.sentiment_text_column}' not found.")
+                        st.session_state.sentiment_data = None
+                        st.session_state.file_summary_for_bots = ""
 
         except Exception as e:
             st.error(f"Error processing Excel file: {e}")
             st.session_state.sentiment_data = None
+            st.session_state.file_summary_for_bots = ""
     else:
+        # Clear data if no file is uploaded
         st.session_state.sentiment_data = None
+        st.session_state.file_summary_for_bots = ""
+        st.session_state.sentiment_text_column = ""
 
-        # Main content area with tabs for chatbots
+
+# Main content area with tabs for chatbots and sentiment results
 tab1, tab2 = st.tabs(["💬 Chat with GPT-2", "🧠 Chat with Groq Llama-3.1"])
 
 with tab1:
