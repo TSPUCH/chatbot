@@ -1,4 +1,4 @@
-from langchain.agents import create_csv_agent
+from langchain.agents import create_excel_agent
 from langchain.llms import GroQ
 from dotenv import load_dotenv
 import os
@@ -20,7 +20,7 @@ def main():
     excel_file = st.file_uploader("Upload a Excel file", type="xlsx")
     if excel_file is not None:
 
-        agent = create_csv_agent(
+        agent = create_excel_agent(
             GroQ(temperature=0), excel_file, verbose=True)
 
         user_question = st.text_input("Ask a question about your Excel: ")
