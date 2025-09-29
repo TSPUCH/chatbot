@@ -96,3 +96,10 @@ First, clone the project repository to your local machine:
 ```bash
 git clone https://github.com/TSPUCH/chatbot.git
 cd chatbot.git
+```
+
+
+Secondly, Install the necessary dependencies by running the following command:
+
+```bash
+pip install -r requirements.txt
