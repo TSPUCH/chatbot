@@ -249,8 +249,9 @@ with st.sidebar:
                 with st.spinner("Analyzing sentiment and preparing file context..."):
                     if st.session_state.sentiment_text_column in df.columns:
                         # Perform sentiment analysis
-                        df['sentiment_label'] = df[st.session_state.sentiment_text_column].apply(lambda x: analyze_sentiment(x)[0])
-                        df['sentiment_scores'] = df[st.session_state.sentiment_text_column].apply(lambda x: analyze_sentiment(x)[1])
+                        sentiment_results = df[st.session_state.sentiment_text_column].apply(lambda x: analyze_sentiment(x))
+                        df['sentiment_label'] = [res[0] for res in sentiment_results]
+                        df['sentiment_scores'] = [res[1] for res in sentiment_results]
                         st.session_state.sentiment_data = df.copy() # Store the analyzed DataFrame
 
                         # Generate summary for the bots
