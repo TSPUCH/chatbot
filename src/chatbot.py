@@ -1,55 +1,53 @@
-from dotenv import load_dotenv
+﻿from dotenv import load_dotenv
 load_dotenv() 
 
-#--- imports --- 
+# --- Imports ---
 import streamlit as st
 import pandas as pd
 from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
 import torch
 import os
 from groq import Groq
+import io # For handling in-memory file operations
 
-#----------------------------------------------------------------------
 # --- Configuration ---
-#----------------------------------------------------------------------
 
-# Set your Groq API key here or as an environment variable (loaded by dotenv)
+# Set your Groq API key from environment variables
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     st.error("Groq API key not found. Please ensure it's set in your .env file as 'GROQ_API_KEY'.")
     st.stop()
 
-# --- GPT-2 Model Name ---
-# We will use the standard Hugging Face model identifier for GPT-2
-# This allows the 'transformers' library to manage downloading and caching.
-GPT2_MODEL_NAME = "gpt2" # You can change this to "gpt2-medium", "gpt2-large", etc.
-
+# GPT-2 Model Name for text generation
+GPT2_MODEL_NAME = "gpt2" # Can be "gpt2-medium", "gpt2-large", etc.
 
 # --- Streamlit Page Configuration ---
-st.set_page_config(page_title="Advanced Chatbot", layout="wide")
-st.title("Chatbot with Sentiment Analysis for Excel")
-
-
+st.set_page_config(page_title="Advanced Chatbot & Sentiment Analyzer", layout="wide")
+st.title("Intelligent Chatbots with Excel Sentiment Analysis")
 
 # --- Session State Initialization ---
+# Initialize chat messages for GPT-2
 if "messages_gpt2" not in st.session_state:
     st.session_state.messages_gpt2 = []
+# Initialize chat messages for Llama
 if "messages_llama" not in st.session_state:
     st.session_state.messages_llama = []
+# Store sentiment analysis results DataFrame
 if "sentiment_data" not in st.session_state:
     st.session_state.sentiment_data = None
+# Store a textual summary of the uploaded file for chatbots
+if "file_summary_for_bots" not in st.session_state:
+    st.session_state.file_summary_for_bots = ""
+# Store the name of the column used for sentiment analysis
+if "sentiment_text_column" not in st.session_state:
+    st.session_state.sentiment_text_column = ""
 
 
-#------------------------------------------------------------------------    
-# --- Helper Functions ---
-#------------------------------------------------------------------------
-
+# --- Model Loading (Cached) ---
 @st.cache_resource
 def load_gpt2_model():
-    """Loads the GPT-2 model and tokenizer for text generation."""
+    """Loads the GPT-2 text generation model and tokenizer."""
     try:
-        # The pipeline will automatically download and cache the model
-        # if it's not already present in the Hugging Face cache.
         generator = pipeline(
             'text-generation',
             model=GPT2_MODEL_NAME,
@@ -59,56 +57,134 @@ def load_gpt2_model():
         st.success(f"GPT-2 model '{GPT2_MODEL_NAME}' loaded successfully!")
         return generator
     except Exception as e:
-        st.error(f"Error loading GPT-2 model '{GPT2_MODEL_NAME}': {e}. Check your internet connection for the initial download.")
+        st.error(f"Error loading GPT-2 model '{GPT2_MODEL_NAME}': {e}. Check internet for initial download.")
         st.stop()
 
 @st.cache_resource
 def load_sentiment_model():
-    """Loads a pre-trained sentiment analysis model."""
+    """Loads a pre-trained sentiment analysis model (RoBERTa-base)."""
     sentiment_tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
     sentiment_model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
     # Move model to GPU if available
     if torch.cuda.is_available():
-        sentiment_model.to("cuda")
+        sentiment_model.to("cuda") # Move model to GPU if available
     st.success("Sentiment analysis model loaded successfully!")
     return sentiment_tokenizer, sentiment_model
 
-# Load models at startup
+# Load models at application startup
 gpt2_generator = load_gpt2_model()
 sentiment_tokenizer, sentiment_model = load_sentiment_model()
 
+# --- Sentiment Analysis Function ---
 def analyze_sentiment(text):
-    """Performs sentiment analysis on a given text."""
-    # Handle non-string inputs gracefully
-    if not isinstance(text, str):
+    """Performs sentiment analysis on a given text using the loaded model."""
+    if not isinstance(text, str): # Ensure input is a string
         text = str(text)
 
+    # Prepare input for the model
     inputs = sentiment_tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
     if torch.cuda.is_available():
-        inputs = {k: v.to("cuda") for k, v in inputs.items()}
-    with torch.no_grad():
+        inputs = {k: v.to("cuda") for k, v in inputs.items()} # Move inputs to GPU
+
+    with torch.no_grad(): # Disable gradient calculation for inference
         outputs = sentiment_model(**inputs)
-    scores = outputs.logits[0].softmax(dim=-1)
-    # The model outputs scores for negative, neutral, positive
-    # We map these to actual labels
-    labels = ["Negative", "Neutral", "Positive"]
-    sentiment_score = scores.tolist()
+    
+    scores = outputs.logits[0].softmax(dim=-1) # Get probabilities
+    labels = ["Negative", "Neutral", "Positive"] # Model's output labels
+    
     sentiment_label = labels[torch.argmax(scores).item()]
+    sentiment_score = scores.tolist() # Convert scores to a list
     return sentiment_label, sentiment_score
-#------------------------------------------------------------------------
+
+# --- File Processing and Bot Context Generation ---
+def generate_file_summary_for_bots(df, text_column):
+    """
+    Generates a text summary of the uploaded DataFrame for the chatbots.
+    This includes schema, basic statistics, and a few sample rows.
+    """
+    summary_parts = []
+    summary_parts.append("--- EXCEL FILE CONTEXT ---\n")
+    summary_parts.append("An Excel file has been uploaded with the following columns:\n")
+    summary_parts.append(", ".join(df.columns.tolist()) + "\n")
+    summary_parts.append(f"The primary column for sentiment analysis is '{text_column}'.\n")
+    
+    # Add key column descriptions if available in the DataFrame
+    key_columns = {
+        'review_content': 'Full text of the user review.',
+        'review_title': 'Short title or summary of the review.',
+        'rating': 'Numerical rating, typically 1-5, indicating user satisfaction.',
+        'product_name': 'Name of the product being reviewed.',
+        'category': 'Category of the product.',
+        'user_id': 'Unique identifier for the user.',
+        'rating_count': 'Number of ratings for a particular item/product.'
+    }
+    
+    summary_parts.append("\nKey columns and their descriptions:\n")
+    for col, desc in key_columns.items():
+        if col in df.columns:
+            summary_parts.append(f"- {col}: {desc}\n")
+
+    summary_parts.append("\nDataset Statistics:\n")
+    summary_parts.append(f"- Number of rows: {len(df)}\n")
+    
+    # Add sentiment distribution if already analyzed
+    if 'sentiment_label' in df.columns:
+        sentiment_counts = df['sentiment_label'].value_counts(normalize=True) * 100
+        summary_parts.append("\nOverall Sentiment Distribution:\n")
+        for label, percentage in sentiment_counts.items():
+            summary_parts.append(f"- {label}: {percentage:.2f}%\n")
+
+    # Add a sample of the data (first few rows) for context
+    if not df.empty:
+        summary_parts.append("\nHere are the first 5 rows of the data (truncated for brevity):\n")
+        # Select important columns to show in sample
+        display_cols = [col for col in ['review_content', 'review_title', 'rating', 'sentiment_label'] if col in df.columns]
+        if not display_cols: # Fallback if none of the specific columns exist
+            display_cols = df.columns[:5].tolist() # Take first 5 available columns
+
+        sample_df = df[display_cols].head(5).copy()
+        # Truncate long text for display
+        for col in ['review_content', 'review_title']:
+            if col in sample_df.columns:
+                sample_df[col] = sample_df[col].astype(str).apply(lambda x: x[:100] + '...' if len(x) > 100 else x)
+        
+        # Convert sample_df to markdown table for LLM
+        summary_parts.append(sample_df.to_markdown(index=False) + "\n")
+    
+    summary_parts.append("--- END EXCEL FILE CONTEXT ---\n")
+    return "".join(summary_parts)
+
 # --- Chat Function for GPT-2 ---
-#------------------------------------------------------------------------
-def chat_with_gpt2(prompt):
-    """Generates a response using the GPT-2 model."""
-    response = gpt2_generator(prompt, max_length=200, num_return_sequences=1, truncation=True)
-    return response[0]['generated_text']
+def chat_with_gpt2(prompt, file_context=""):
+    """
+    Generates a response using the GPT-2 model, optionally incorporating file context.
+    GPT-2 is a completion model, so context is prepended to the prompt.
+    """
+    full_prompt = file_context + "\n" + prompt if file_context else prompt
+    # GPT-2 can sometimes ignore instructions when context is too long or specific
+    # We keep it simple for its generation style.
+    response = gpt2_generator(
+        full_prompt, 
+        max_length=max(50, len(full_prompt.split()) + 150), # Ensure response has room beyond prompt
+        num_return_sequences=1, 
+        truncation=True,
+        do_sample=True, # Use sampling for more creative responses
+        temperature=0.7 # Add temperature for variety
+    )
+    # The response often includes the prompt itself. We try to extract only the new generation.
+    generated_text = response[0]['generated_text']
+    # Attempt to remove the input prompt from the generated text
+    if generated_text.startswith(full_prompt):
+        return generated_text[len(full_prompt):].strip()
+    return generated_text.strip()
 
 
-#-----------------------------------------------------------------------
 # --- Chat Function for Groq Llama-3.1 ---
-#-----------------------------------------------------------------------
-def chat_with_llama(prompt):
-    """Generates a response using the Groq Llama-3.1 API."""
+def chat_with_llama(prompt, file_context=""):
+    """
+    Generates a response using the Groq Llama-3.1 API, incorporating file context
+    via a system message for better instruction following.
+    """
     try:
         client = Groq(api_key=GROQ_API_KEY)
         chat_completion = client.chat.completions.create(
