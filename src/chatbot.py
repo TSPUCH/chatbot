@@ -133,6 +133,37 @@ def generate_file_summary_for_bots(df, text_column):
         for label, percentage in sentiment_counts.items():
             summary_parts.append(f"- {label}: {percentage:.2f}%\n")
 
+        
+        summary_parts.append("\n--- DETAILED SENTIMENT ANALYTICS ---\n")
+        
+        # Average rating by sentiment (if 'rating' column exists)
+        if 'rating' in df.columns:
+            avg_rating_by_sentiment = df.groupby('sentiment_label')['rating'].mean()
+            if not avg_rating_by_sentiment.empty:
+                summary_parts.append("\nAverage Rating by Sentiment:\n")
+                summary_parts.append(avg_rating_by_sentiment.to_markdown() + "\n")
+
+        # Top/Bottom N products/categories by sentiment (if relevant columns exist)
+        if 'product_name' in df.columns:
+            positive_products = df[df['sentiment_label'] == 'Positive']['product_name'].value_counts().head(3)
+            negative_products = df[df['sentiment_label'] == 'Negative']['product_name'].value_counts().head(3)
+            if not positive_products.empty:
+                summary_parts.append("\nTop 3 Products with Most Positive Reviews:\n")
+                summary_parts.append(positive_products.to_markdown() + "\n")
+            if not negative_products.empty:
+                summary_parts.append("\nTop 3 Products with Most Negative Reviews:\n")
+                summary_parts.append(negative_products.to_markdown() + "\n")
+
+        if 'category' in df.columns:
+            positive_categories = df[df['sentiment_label'] == 'Positive']['category'].value_counts().head(3)
+            negative_categories = df[df['sentiment_label'] == 'Negative']['category'].value_counts().head(3)
+            if not positive_categories.empty:
+                summary_parts.append("\nTop 3 Categories with Most Positive Reviews:\n")
+                summary_parts.append(positive_categories.to_markdown() + "\n")
+            if not negative_categories.empty:
+                summary_parts.append("\nTop 3 Categories with Most Negative Reviews:\n")
+                summary_parts.append(negative_categories.to_markdown() + "\n")
+
     # Add a sample of the data (first few rows) for context
     if not df.empty:
         summary_parts.append("\nHere are the first 5 rows of the data (truncated for brevity):\n")
