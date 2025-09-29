@@ -95,4 +95,36 @@ def analyze_sentiment(text):
     sentiment_score = scores.tolist()
     sentiment_label = labels[torch.argmax(scores).item()]
     return sentiment_label, sentiment_score
+#------------------------------------------------------------------------
+# --- Chat Function for GPT-2 ---
+#------------------------------------------------------------------------
+def chat_with_gpt2(prompt):
+    """Generates a response using the GPT-2 model."""
+    response = gpt2_generator(prompt, max_length=200, num_return_sequences=1, truncation=True)
+    return response[0]['generated_text']
+
+
+#-----------------------------------------------------------------------
+# --- Chat Function for Groq Llama-3.1 ---
+#-----------------------------------------------------------------------
+def chat_with_llama(prompt):
+    """Generates a response using the Groq Llama-3.1 API."""
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="llama-3.1-8b-instant", # Ensure this model name is correct and available on Groq
+            temperature=0.7,
+            max_tokens=200,
+        )
+        return chat_completion.choices[0].message.content
+    except Exception as e:
+        st.error(f"Error communicating with Groq API: {e}")
+        return "Sorry, I couldn't connect to the Llama model."
+
 
