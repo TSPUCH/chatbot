@@ -20,10 +20,8 @@
   - [Contact](#contact)
 
 ## Visual Demo
-<!-- 
-     screenshot.
-    
--->
+<img width="1822" height="981" alt="image" src="https://github.com/user-attachments/assets/0be91956-01f0-4db9-94b4-9c5f31f5e69c" />
+
 Here is an example of the dashboard in action:
 `
 
