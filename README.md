@@ -1,7 +1,7 @@
 # Intelligent Chatbots with Excel Sentiment Analysis
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-streamlit-app-link.streamlit.app) <!-- Replace with your actual deployed app link -->
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)]
 
 > Unleash the power of AI chatbots and gain instant sentiment insights from your Excel data.
 
@@ -94,5 +94,5 @@ Follow these steps to get the project running on your local machine.
 First, clone the project repository to your local machine:
 
 ```bash
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
+git clone https://github.com/TSPUCH/chatbot.git
+cd chatbot.git
