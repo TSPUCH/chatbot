@@ -322,8 +322,7 @@ if st.session_state.sentiment_data is not None:
     
     # Optionally display a sample of the analyzed data
     st.markdown("---")
-    # Main content area with tabs for chatbots and sentiment results
-tab1, tab2 = st.tabs(["💬 Chat with GPT-2", "🧠 Chat with Groq Llama-3.1"])
+    
 
 # --- Display Sentiment Results in Main Page if Available ---
 if st.session_state.sentiment_data is not None:
@@ -337,7 +336,7 @@ if st.session_state.sentiment_data is not None:
     st.subheader("🤖 Chatbot File Context (for debugging)")
     if st.session_state.file_summary_for_bots:
         st.expander("Click to see the full context passed to chatbots:")
-            st.code(st.session_state.file_summary_for_bots)
+        st.code(st.session_state.file_summary_for_bots)
     else:
         st.info("No file context generated yet. Please upload a file and run analysis.")
     st.markdown("---")
