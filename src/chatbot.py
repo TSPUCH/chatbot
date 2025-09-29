@@ -193,5 +193,22 @@ with tab1:
                 st.markdown(full_response)
         st.session_state.messages_gpt2.append({"role": "assistant", "content": full_response})
 
+with tab2:
+    st.header("Chat with Groq Llama-3.1")
+    for message in st.session_state.messages_llama:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Say something to Llama-3.1...", key="llama_chat_input"):
+        st.session_state.messages_llama.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Llama-3.1 is thinking..."):
+                full_response = chat_with_llama(prompt)
+                st.markdown(full_response)
+        st.session_state.messages_llama.append({"role": "assistant", "content": full_response})
+
 
 
