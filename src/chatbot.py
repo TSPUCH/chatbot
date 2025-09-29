@@ -52,7 +52,7 @@ def load_gpt2_model():
             'text-generation',
             model=GPT2_MODEL_NAME,
             tokenizer=GPT2_MODEL_NAME,
-            torch_dtype=torch.float16 # Use float16 for better performance if GPU is available
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32 # Use float16 if GPU, else float32
         )
         st.success(f"GPT-2 model '{GPT2_MODEL_NAME}' loaded successfully!")
         return generator
@@ -65,7 +65,6 @@ def load_sentiment_model():
     """Loads a pre-trained sentiment analysis model (RoBERTa-base)."""
     sentiment_tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
     sentiment_model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
-    # Move model to GPU if available
     if torch.cuda.is_available():
         sentiment_model.to("cuda") # Move model to GPU if available
     st.success("Sentiment analysis model loaded successfully!")
@@ -327,16 +326,21 @@ with tab1:
 
         with st.chat_message("assistant"):
             with st.spinner(f"{GPT2_MODEL_NAME} is thinking..."):
-                full_response = chat_with_gpt2(prompt)
+                # Pass file summary to the chatbot function
+                full_response = chat_with_gpt2(prompt, st.session_state.file_summary_for_bots)
                 st.markdown(full_response)
         st.session_state.messages_gpt2.append({"role": "assistant", "content": full_response})
 
+# --- Llama-3.1 Chat Tab ---
 with tab2:
     st.header("Chat with Groq Llama-3.1")
+    
+    # Display previous messages
     for message in st.session_state.messages_llama:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Chat input for Llama
     if prompt := st.chat_input("Say something to Llama-3.1...", key="llama_chat_input"):
         st.session_state.messages_llama.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -344,9 +348,7 @@ with tab2:
 
         with st.chat_message("assistant"):
             with st.spinner("Llama-3.1 is thinking..."):
-                full_response = chat_with_llama(prompt)
+                # Pass file summary to the chatbot function
+                full_response = chat_with_llama(prompt, st.session_state.file_summary_for_bots)
                 st.markdown(full_response)
         st.session_state.messages_llama.append({"role": "assistant", "content": full_response})
-
-
-
